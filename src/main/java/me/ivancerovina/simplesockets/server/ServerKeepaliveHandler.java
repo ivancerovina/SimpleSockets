@@ -1,5 +1,9 @@
 package me.ivancerovina.simplesockets.server;
 
+import me.ivancerovina.simplesockets.client.events.ExceptionEvent;
+import me.ivancerovina.simplesockets.server.events.ClientExceptionEvent;
+import me.ivancerovina.simplesockets.server.events.ServerExceptionEvent;
+
 import java.io.IOException;
 
 public class ServerKeepaliveHandler implements Runnable {
@@ -13,40 +17,51 @@ public class ServerKeepaliveHandler implements Runnable {
 
     @Override
     public void run() {
-        for (Client client : server.getClients()) {
-            var session = client.getSessionData();
-            var socket = client.getSocket();
+        while (true) {
+            for (Client client : server.getClients()) {
+                var session = client.getSessionData();
+                var socket = client.getSocket();
 
-            if (!socket.isConnected() || socket.isClosed()) {
-                closeClient(client);
-                return;
-            }
-
-            if (!session.containsKey("keepalive_check_time")) {
-                session.put("keepalive_check_time", System.currentTimeMillis());
-                continue;
-            }
-
-            var timeDiff = System.currentTimeMillis() - (long) session.get("keepalive_check_time");
-
-            if (timeDiff > keepaliveTimeout) {
-                if ((boolean) session.getOrDefault("keepalive_requested", false)) {
+                if (!socket.isConnected() || socket.isClosed()) {
                     closeClient(client);
-                } else {
-                    session.put("keepalive_requested", true);
-                    try {
-                        client.sendKeepaliveRequest();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                    return;
+                }
+
+                if (!session.containsKey("keepalive_check_time")) {
+                    session.put("keepalive_check_time", System.currentTimeMillis());
+                    continue;
+                }
+
+                var timeDiff = System.currentTimeMillis() - (long) session.get("keepalive_check_time");
+
+                if (timeDiff > keepaliveTimeout) {
+                    if ((boolean) session.getOrDefault("keepalive_requested", false)) {
+                        closeClient(client);
+                    } else {
+                        session.put("keepalive_requested", true);
+                        try {
+                            client.sendKeepaliveRequest();
+                            client.getLogger().info("Requested keepalive");
+                        } catch (InterruptedException e) {
+                            var event = new ServerExceptionEvent(server, e);
+
+                            if (!server.getEventManager().callEvent(event)) {
+                                server.getLogger().error("Interrupted while sending keepalive request", e);
+                            }
+                        }
                     }
                 }
             }
-        }
 
-        try {
-            Thread.sleep(keepaliveTimeout / 2);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            try {
+                Thread.sleep(keepaliveTimeout / 2);
+            } catch (InterruptedException e) {
+                var event = new ServerExceptionEvent(server, e);
+
+                if (!server.getEventManager().callEvent(event)) {
+                    server.getLogger().error("An error occurred while managing keepalives", e);
+                }
+            }
         }
     }
 
@@ -60,7 +75,11 @@ public class ServerKeepaliveHandler implements Runnable {
         try {
             client.closeConnection();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            var event = new ClientExceptionEvent(client, e);
+
+            if (!server.getEventManager().callEvent(event)) {
+                client.getLogger().error("An error occurred while closing client connection", e);
+            }
         }
     }
 }

@@ -1,9 +1,11 @@
 package me.ivancerovina.simplesockets.server;
 
+import me.ivancerovina.simplesockets.client.events.ExceptionEvent;
 import me.ivancerovina.simplesockets.client.events.PacketSentEvent;
 import me.ivancerovina.simplesockets.packet.Packet;
 import me.ivancerovina.simplesockets.packet.PacketManager;
 import me.ivancerovina.simplesockets.packet.PacketProtocol;
+import me.ivancerovina.simplesockets.server.events.ClientExceptionEvent;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -39,14 +41,22 @@ public class ClientOutputHandler implements Runnable {
             } catch (InterruptedException e) {
                 break;
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                var event = new ClientExceptionEvent(client, e);
+
+                if (!client.getServer().getEventManager().callEvent(event)) {
+                    client.getLogger().error("An error occurred while writing data", e);
+                }
             }
         }
 
         try {
             client.closeConnection();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            var event = new ClientExceptionEvent(client, e);
+
+            if (!client.getServer().getEventManager().callEvent(event)) {
+                client.getLogger().error("An error occurred while closing connection with client", e);
+            }
         }
     }
 

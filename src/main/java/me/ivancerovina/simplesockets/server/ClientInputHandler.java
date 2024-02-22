@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import me.ivancerovina.simplesockets.packet.Packet;
 import me.ivancerovina.simplesockets.packet.PacketProtocol;
 import me.ivancerovina.simplesockets.packet.PacketProtocolHandler;
+import me.ivancerovina.simplesockets.server.events.ClientExceptionEvent;
 import me.ivancerovina.simplesockets.server.events.ClientKeepaliveReceived;
 import me.ivancerovina.simplesockets.server.events.PacketReceivedEvent;
 
@@ -45,7 +46,11 @@ public class ClientInputHandler implements Runnable, PacketProtocolHandler {
             } catch (SocketException e) {
                 break;
             } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
+                var event = new ClientExceptionEvent(client, e);
+
+                if (!client.getServer().getEventManager().callEvent(event)) {
+                    client.getLogger().error("An error occurred while reading data", e);
+                }
                 break;
             }
         }
@@ -53,7 +58,11 @@ public class ClientInputHandler implements Runnable, PacketProtocolHandler {
         try {
             client.closeConnection();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            var event = new ClientExceptionEvent(client, e);
+
+            if (!client.getServer().getEventManager().callEvent(event)) {
+                client.getLogger().error("An error occurred while closing connection with client", e);
+            }
         }
     }
 
@@ -64,8 +73,8 @@ public class ClientInputHandler implements Runnable, PacketProtocolHandler {
             var event = new PacketReceivedEvent(client, packet);
             this.client.getServer().getEventManager().callEvent(event);
 
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+        } catch (JsonProcessingException ignored) {
+
         }
     }
 

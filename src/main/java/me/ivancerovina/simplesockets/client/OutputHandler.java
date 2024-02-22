@@ -1,10 +1,12 @@
 package me.ivancerovina.simplesockets.client;
 
+import me.ivancerovina.simplesockets.client.events.ExceptionEvent;
 import me.ivancerovina.simplesockets.packet.Packet;
 import me.ivancerovina.simplesockets.packet.PacketProtocol;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.net.SocketException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -22,22 +24,35 @@ public class OutputHandler implements Runnable {
     public void run() {
         while (true) {
             try {
+                if (client.getSocket().isClosed() || !client.getSocket().isConnected()) {
+                    break;
+                }
+
                 var data = queue.take();
 
                 outputStream.write(data);
                 outputStream.flush();
-
-            } catch (InterruptedException e) {
+            } catch (SocketException e) {
                 break;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            } catch (InterruptedException | IOException e) {
+                var event = new ExceptionEvent(e);
+
+                if (!client.getEventManager().callEvent(event)) {
+                    client.getLogger().error("An error occurred while writing data", e);
+                }
+
+                break;
             }
         }
 
         try {
             client.closeConnection();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            var event = new ExceptionEvent(e);
+
+            if (!client.getEventManager().callEvent(event)) {
+                client.getLogger().error("Exception while closing connection", e);
+            }
         }
     }
 

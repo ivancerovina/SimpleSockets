@@ -39,11 +39,11 @@ public class EventManager {
         }
     }
 
-    public void callEvent(Object event) {
+    public boolean callEvent(Object event) {
         var clazz = event.getClass();
 
         if (!callables.containsKey(clazz)) {
-            return;
+            return false;
         }
 
         var events = callables.get(clazz);
@@ -58,5 +58,7 @@ public class EventManager {
                     }
                 })
         );
+
+        return events.size() > 0;
     }
 }

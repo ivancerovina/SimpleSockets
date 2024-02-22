@@ -72,6 +72,14 @@ public class SimpleSocketClient {
         return eventManager;
     }
 
+    protected InputHandler getInputHandler() {
+        return inputHandler;
+    }
+
+    protected OutputHandler getOutputHandler() {
+        return outputHandler;
+    }
+
     public Socket getSocket() {
         return socket;
     }

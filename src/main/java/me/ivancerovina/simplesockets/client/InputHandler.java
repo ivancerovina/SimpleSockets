@@ -1,6 +1,7 @@
 package me.ivancerovina.simplesockets.client;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import me.ivancerovina.simplesockets.client.events.ExceptionEvent;
 import me.ivancerovina.simplesockets.client.events.PacketReceivedEvent;
 import me.ivancerovina.simplesockets.demo.DemoPacket;
 import me.ivancerovina.simplesockets.packet.PacketProtocol;
@@ -29,6 +30,10 @@ public class InputHandler implements Runnable, PacketProtocolHandler {
 
         while (true) {
             try {
+                if (client.getSocket().isClosed() || !client.getSocket().isConnected()) {
+                    break;
+                }
+
                 if (inputStream.available() > 0) {
                     int bytesRead = inputStream.read(buffer);
                     if (bytesRead != -1) {
@@ -43,8 +48,11 @@ public class InputHandler implements Runnable, PacketProtocolHandler {
             } catch (SocketException e) {
                 break;
             } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-                break;
+                var event = new ExceptionEvent(e);
+
+                if (!client.getEventManager().callEvent(event)) {
+                    client.getLogger().error("An error occurred while writing data", e);
+                }
             }
         }
 
@@ -63,13 +71,13 @@ public class InputHandler implements Runnable, PacketProtocolHandler {
             var event = new PacketReceivedEvent(packet);
             client.getEventManager().callEvent(event);
 
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+        } catch (JsonProcessingException ignored) {
         }
     }
 
     @Override
     public void onKeepaliveReceived() {
-
+        client.getLogger().info("Keepalive request received, sending...");
+        client.getOutputHandler().sendKeepalive();
     }
 }
